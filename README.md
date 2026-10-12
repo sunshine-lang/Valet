@@ -1,60 +1,249 @@
-# Valet
+<div align="center">
 
-可复用的智能体调试台：主循环、工具、会话文件目录和全链路追踪。名字默认是 Valet，换项目时改 `.env` 里的 `AGENT_NAME`。业务设计见 [`docs/design.md`](docs/design.md)。
+<img src="web/public/favicon.svg" alt="Valet" width="64" height="64" />
 
-## 底座里有什么
+<h1>Valet</h1>
 
-- **主循环**（`services/agent-api/src/agent_api/agent/loop.py`）：原生函数调用。停的方式有四层：
-  - 最大步数到了，去掉工具，用已有结果再答一次；
-  - 单个工具超时，把错误交回模型，循环继续；
-  - 模型流空闲超时：一直有新输出就不掐断，安静太久才停；
-  - 运行时间上限只在两轮之间检查。正在输出的这一轮会跑完，到点后不再开新工具，用已有结果收尾。
-  - 另外可以中途取消，工具连续失败会停下来说明原因。运行中再发一条消息会插进当前这轮，等这一轮结束再处理。
-- **上下文**：历史太长时按轮次丢掉较早的工具结果，并在系统提示里注明。
-- **护栏**（`agent/guardrails.py`）：位于「模型决定调用工具」与「工具执行」之间。未启用的工具会被拦截；需要确认的工具会暂停运行，等用户确认或拒绝后再继续。
-- **工具**分两类，都注册在 `tools/`，在设置的工具页里开关：
-  - 正式工具默认打开：天气、联网搜索、项目文件（`ls` / `read_file` / `write_file` / `str_replace`）。工作区是项目根目录。上传和交付物在项目内的 `.valet/sessions/{会话}/`。`.env`、密钥和 `.git` 不能读写。项目外路径和联网会先请求授权：本次允许、本对话允许或拒绝。
-  - 示例工具默认关闭，用来试成功、参数错误、超时、连续失败和需确认这几条路径。
-- **搜索**：`web_search` 要求用用户正在使用的语言搜一次。
-- **技能**分三类。`skills/market/` 是平台收录的技能市场，浏览后点「使用」才安装。`skills/builtin/` 是注册就有的技能，包括 Word、PDF、PPT 和平台自带能力。`data/skills/` 是每个人另外导入的技能，显示在「已安装」，不包含内置技能。模型能用内置技能、已安装技能，以及自己从市场装上的技能。系统提示里只有名字和何时使用；`read_skill` 再读全文。输入框里点中的技能，只在这一轮把正文注进提示。
-- **追踪**（`tracing/`）：数据层级是会话 → 运行 → 步骤。每一步都记录输入、输出、耗时、token 和费用估算；每次运行保存一份配置快照。字段按 OpenTelemetry GenAI 约定命名，预留了导出接口。
-- **前端**（`web/`，Vue 3 + shadcn-vue + Tailwind v4）：对话页（流式输出、深度思考可折叠、工具卡片、确认卡片、停止按钮）、右侧追踪抽屉、模型配置、工具列表、运行记录。界面上的名字来自后端的 `AGENT_NAME`。
+<p><strong>让智能体的每一步，都看得见。</strong></p>
 
-已经保存过的系统提示词不会跟着 `AGENT_NAME` 自动改，在设置的「通用」里改第一句即可。
+<p>可复用的 AI Agent 工作台：从模型决策、工具执行，到权限确认与运行追踪。</p>
 
-## 本地运行
+<p>
+  <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+" />
+  <img src="https://img.shields.io/badge/Vue-3-42B883?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3" />
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-18181B?style=flat-square" alt="Apache License 2.0" /></a>
+</p>
 
-需要 Docker、Python 3.12+（用 [uv](https://docs.astral.sh/uv/) 管理）、Node 22+ 和 pnpm。
+<p>
+  <a href="#快速开始">快速开始</a> ·
+  <a href="#核心能力">核心能力</a> ·
+  <a href="#工作原理">工作原理</a> ·
+  <a href="#开发与验证">开发与验证</a> ·
+  <a href="#当前边界">当前边界</a>
+</p>
+
+</div>
+
+![Valet 工作台：流式对话、工具输入输出与运行结果](docs/assets/valet-workbench.png)
+
+<p align="center"><sub>真实本地界面，使用 Mock 模型演示计算工具；截图中的费用为模拟运行费用。</sub></p>
+
+## 为什么做 Valet
+
+开发 Agent 时，除了得到答案，还需要知道：模型调用了哪个工具、参数是什么、为什么暂停、失败后怎么处理，以及这次运行用了多少 Token。
+
+Valet 把这些环节放进同一个工作台。你可以配置模型与提示词、开关工具、管理 Skills，在对话中查看执行结果，再展开追踪记录检查每一步。它适合学习 Agent 工程、验证工具与护栏，也适合作为业务助手的开发底座。
+
+## 核心能力
+
+| 能力 | 当前实现 |
+| --- | --- |
+| **Agent 主循环** | 模型原生函数调用、流式输出、上下文裁剪、运行中插话和取消；包含步数、超时与连续失败处理 |
+| **工具与权限** | Pydantic 参数定义与校验；工具开关；按权限策略放行、拦截或暂停等待确认 |
+| **项目文件** | `ls`、`read_file`、`write_file`、`str_replace`；支持上传资料与会话交付物，限制敏感路径访问 |
+| **联网能力** | 天气查询；通过博查或 Tavily 搜索，搜索词要求使用用户当前的语言 |
+| **Skills** | 内置、市场、用户导入三类技能；支持 ZIP 导入、按需读取全文，以及本轮指定技能 |
+| **运行追踪** | 会话 → 运行 → 步骤；查看输入、输出、耗时、Token、费用估算与配置快照 |
+| **定时任务** | 单次、固定间隔，以及每日、每周、隔周、每月、每年执行 |
+| **网页工作台** | 对话、工具与确认卡片、追踪抽屉、模型设置、技能管理、运行记录和明暗主题 |
+
+<details>
+<summary><strong>展开查看运行追踪</strong></summary>
+
+![Valet 运行追踪：模型调用、工具调用与执行时间线](docs/assets/valet-trace.png)
+
+同一次计算运行的真实追踪记录。可展开每一步的输入、输出和属性；Mock 模式中的 Token 是近似计数，费用为 0。
+
+</details>
+
+## 快速开始
+
+需要 **Python 3.12+、[uv](https://docs.astral.sh/uv/)、Node.js 22+ 和 pnpm**。先获取项目：
 
 ```bash
-cp .env.example .env          # 填 DASHSCOPE_API_KEY；没有 Key 就把 LLM_PROVIDER 改成 mock
-docker compose up -d          # Postgres（端口 5433）
+git clone https://github.com/sunshine-lang/Valet.git
+cd Valet
+```
+
+### 方式一：免 Key 体验
+
+使用 SQLite 和本地 Mock 模型，无需 Docker 或模型 API Key。
+
+**终端一 · 后端**（从仓库根目录开始）：
+
+```bash
+cd services/agent-api
+uv sync --frozen
+LLM_PROVIDER=mock DATABASE_URL="sqlite+aiosqlite:///./dev.db" \
+  uv run uvicorn agent_api.main:app --reload --reload-dir src --host 127.0.0.1 --port 8000
+```
+
+**终端二 · 前端**（另开终端，从仓库根目录开始）：
+
+```bash
+cd web
+pnpm install --frozen-lockfile
+pnpm dev --host 127.0.0.1 --strictPort
+```
+
+打开 **[http://localhost:5173](http://localhost:5173)**。后端接口文档位于 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)。
+
+Mock 模型按关键词触发示例工具，用于体验执行链路。示例工具默认关闭，先在「设置 → 工具」中启用对应工具，再试试：
+
+| 输入 | 启用的示例工具 | 观察什么 |
+| --- | --- | --- |
+| 帮我算一下 `(18 + 24) * 3` | `calculator` | 工具参数、计算结果和运行追踪 |
+| 现在北京时间是几点？ | `get_current_time` | 时间工具的真实执行结果 |
+| 执行一个 15 秒的慢任务 | `slow_task` | 单个工具超时后的错误回填 |
+| 给演示用户发通知：流程验证 | `send_notification` | 先确认、再执行；通知为模拟发送 |
+
+> Mock 模式不调用外部模型，也不产生模型费用。它不提供通用推理或真实任务规划；天气、联网搜索和文件任务的自动规划需要接入真实模型。设置页切换模型不会退出 Mock 模式，需要停止后端并按下面的真实模型方式重启。
+
+### 方式二：接入真实模型
+
+默认接入阿里云百炼的 OpenAI 兼容接口。首次配置时，在仓库根目录执行；已有 `.env` 时直接编辑：
+
+```bash
+cp .env.example .env
+```
+
+在 `.env` 中填写：
+
+```dotenv
+LLM_PROVIDER=dashscope
+DASHSCOPE_API_KEY=your_api_key
+DATABASE_URL=postgresql+asyncpg://valet:valet@localhost:5433/valet
+```
+
+启动 Docker 后运行数据库，再启动后端：
+
+```bash
+# 仓库根目录；PostgreSQL 映射到本机 5433 端口
+docker compose up -d
 
 cd services/agent-api
-uv sync
-uv run uvicorn agent_api.main:app --reload --reload-dir src --port 8000
-
-cd web                        # 另开一个终端
-pnpm install
-pnpm dev                      # http://localhost:5173
+uv sync --frozen
+uv run uvicorn agent_api.main:app --reload --reload-dir src --host 127.0.0.1 --port 8000
 ```
 
-**不装 Docker、不配 Key 也能体验**：后端用 SQLite 加本地模拟模型启动。模拟模型按关键词触发探针工具，不调外部接口，也不计费。
+前端沿用方式一的命令。也可以把 `DATABASE_URL` 改为 `sqlite+aiosqlite:///./dev.db`，在本地用 SQLite 配合真实模型。
+
+| 配置 | 用途 |
+| --- | --- |
+| `AGENT_NAME` | 界面名称、接口标题，以及未保存过的默认系统提示词 |
+| `LLM_PROVIDER` | 后端客户端模式：`dashscope` 使用真实模型，`mock` 使用本地模拟模型 |
+| `DASHSCOPE_API_KEY` | 百炼模型密钥；其他供应商也可在模型设置中配置 |
+| `DASHSCOPE_BASE_URL` | 默认中国内地接口；国际地域地址见 [.env.example](.env.example) |
+| `BOCHA_API_KEY` / `TAVILY_API_KEY` | 联网搜索二选一；未配置时搜索工具会返回错误 |
+| `DATABASE_URL` | PostgreSQL 或 SQLite 连接地址 |
+| `WEB_ORIGIN` | 前端 CORS 来源，默认 `http://localhost:5173` |
+
+模型设置提供百炼、DeepSeek、OpenAI 等供应商目录，也支持自定义兼容接口。具体模型可用性与工具能力取决于所选供应商。
+
+改名后，已保存的系统提示词不会自动改写；请在「设置 → 通用」中同步修改。
+
+## 工作原理
+
+```mermaid
+flowchart LR
+    UI[Vue 工作台] <-->|HTTP / SSE| API[FastAPI]
+    API --> LOOP[Agent 主循环]
+    LOOP <-->|流式响应 / 函数调用| LLM[兼容模型接口 / Mock]
+    LOOP --> GUARD[参数校验与护栏]
+    GUARD --> TOOLS[天气 / 搜索 / 文件 / Skills]
+    TOOLS -->|结果回填| LOOP
+    LOOP --> TRACE[运行与步骤追踪]
+    TRACE --> DB[(PostgreSQL / SQLite)]
+    API <--> DB
+```
+
+模型提出工具调用，执行层校验参数并判断权限，再执行工具、回填结果。需要确认时，运行暂停等待用户选择；未启用的工具会被拦截。
+
+### 运行怎样停止
+
+| 条件 | 默认值 | 处理方式 |
+| --- | --- | --- |
+| 模型调用步数 | 8 步 | 停止调用工具，用已有信息再生成一次收尾回复 |
+| 整次运行时间 | 900 秒 | 在轮次边界检查预算；到点后不再开新工具，用已有结果收尾 |
+| 模型流空闲 | 90 秒 | 持续有新输出就继续；空闲超时则停止并保留已输出内容 |
+| 工具连续失败 | 3 次 | 停止继续调用工具，说明失败情况 |
+
+单个工具另有独立超时，错误会交回模型处理。用户也可以主动取消，或在运行中发送新消息，当前轮结束后继续处理插话。停止原因会保存在运行记录中。
+
+### 工具与技能怎样扩展
+
+- **工具**放在 [`tools/`](services/agent-api/src/agent_api/tools/)，继承 `Tool`，用 Pydantic 定义 `Args`，实现 `run()`，再加入注册表。同一份参数定义用于模型 JSON Schema 和服务端校验。
+- **内置技能**放在 `skills/builtin/`，启动时可用。
+- **市场技能**放在 `skills/market/`，安装后使用。
+- **用户技能**写入 `data/skills/`，支持 ZIP 导入，也可通过 `create_skill` 创建。
+- 系统提示中只列技能名和使用时机；模型通过 `read_skill` 按需读取全文。输入框选中的技能正文只注入当前一轮。
+
+文件工具以仓库为工作区，上传和交付物保存在 `.valet/sessions/{会话}/`。上传目录只读；敏感文件和 Git 内部目录受路径限制，项目外访问与联网由权限策略控制。
+
+## 项目结构
+
+```text
+Valet/
+├── services/agent-api/
+│   ├── src/agent_api/
+│   │   ├── agent/          # 主循环、上下文、运行管理与护栏
+│   │   ├── llm/            # 模型抽象、供应商目录与 Mock
+│   │   ├── tools/          # 工具定义与注册
+│   │   ├── skills/         # 技能目录与导入
+│   │   ├── tracing/        # 步骤记录与导出协议
+│   │   └── schedules.py    # 定时任务与进程内调度
+│   └── tests/              # 后端测试
+├── web/                    # Vue 3 + TypeScript + Pinia + Tailwind CSS v4
+├── skills/                 # 内置技能与市场技能
+├── docs/                   # 设计文档、停止规则调研与界面截图
+├── docker-compose.yml      # 本地 PostgreSQL
+└── .env.example            # 环境配置示例
+```
+
+## 开发与验证
+
+**后端**（从仓库根目录开始）：
 
 ```bash
 cd services/agent-api
-LLM_PROVIDER=mock DATABASE_URL="sqlite+aiosqlite:///./dev.db" uv run uvicorn agent_api.main:app --reload --reload-dir src
+uv run pytest
+uv run ruff check src tests
 ```
 
-## 测试
+**前端**（从仓库根目录开始）：
 
 ```bash
-cd services/agent-api && uv run pytest && uv run ruff check src tests
-cd web && pnpm build
+cd web
+pnpm build
 ```
 
-后端测试用一个按脚本回复的假模型，覆盖以下路径：成功、参数校验错误回填、工具超时、连续失败熔断、最大步数、确认后执行、拒绝执行、新消息打断待确认操作、中途取消、未启用工具被拦截。
+后端测试使用脚本模型，覆盖成功、参数错误回填、工具超时、连续失败、最大步数、确认与拒绝、运行中插话、取消、禁用工具、文件、Skills 和定时任务等路径。真实供应商连通性、模型决策质量和线上稳定性需要单独验证。
+
+<details>
+<summary><strong>常见启动问题</strong></summary>
+
+- **移动目录后提示 `No module named 'agent_api'`**：在 `services/agent-api` 中重新执行 `uv sync --frozen`，让本地包指向当前目录。
+- **Docker 数据库连接失败**：确认 Docker 已启动，并在仓库根目录执行 `docker compose up -d`；也可使用 SQLite 模式。
+- **5173 或 8000 已占用**：先检查占用进程。修改后端端口时，要同步调整 `web/vite.config.ts` 中的代理；修改前端来源时，同步调整 `WEB_ORIGIN`。
+- **需要停止服务**：在对应终端按 `Ctrl+C`。Docker 数据库可用 `docker compose stop` 停止。
+
+</details>
+
+## 当前边界
+
+- 当前交付的是通用 Agent 工作台。知识库页面仍为占位；电商客服中的订单、售后规则、RAG 和人工坐席记录在[业务设计文档](docs/design.md)中，属于后续业务设计。
+- Word、PDF 技能支持读取抽出的正文并整理成文本；PPT 技能目前只整理演示大纲，不能直接解析二进制 `.pptx`。当前均不包含原生 `.docx`、`.pdf`、`.pptx` 成品生成能力。
+- 追踪字段按 OpenTelemetry GenAI 约定命名，已预留[导出协议](services/agent-api/src/agent_api/tracing/exporter.py)；默认使用空导出器，外部追踪平台需要另外接入。费用是估算值，未配置价格的模型不能据此判断实际账单。
+- 定时任务由后端进程内调度器执行；后端停止期间不会继续运行。
+
+## 进一步阅读
+
+- [业务与架构设计](docs/design.md)
+- [Agent 停止规则调研](docs/agent-stop-rules.md)
+- [模型与环境配置示例](.env.example)
+- [Agent 主循环源码](services/agent-api/src/agent_api/agent/loop.py)
 
 ## License
 
-Apache License 2.0 — see [`LICENSE`](LICENSE).
+[Apache License 2.0](LICENSE)
