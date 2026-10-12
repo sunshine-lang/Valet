@@ -1,4 +1,5 @@
 import pytest
+from openai import AsyncOpenAI
 from pydantic import ValidationError
 
 from agent_api.agent.settings import AgentSettings, normalize_api_base
@@ -78,3 +79,18 @@ async def test_blank_api_key_keeps_the_stored_one(client):
     assert body["api_key_set"] is True
     assert body["model"] == "qwen3.8-max-0902"
     assert "api_key" not in body
+
+
+async def test_model_client_supports_socks_proxy(monkeypatch):
+    for name in (
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+        "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ALL_PROXY", "socks5://127.0.0.1:1080")
+
+    async with AsyncOpenAI(
+        api_key="test-key",
+        base_url="https://example.invalid/v1",
+    ) as client:
+        assert not client.is_closed()
