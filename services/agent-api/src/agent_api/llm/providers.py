@@ -67,6 +67,16 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
                 2.0,
                 8.0,
             ),
+            # 账号免费额度不等于模型单价；新增目录项暂不填未经核实的价格。
+            _m("qwen3.8-27b", "Qwen3.8 27B"),
+            _m("qwen3.7-flash-2026-07-15", "Qwen3.7 Flash 2026-07-15"),
+            _m("qwen3.8-flash", "Qwen3.8 Flash"),
+            _m("kimi-k3", "Kimi K3"),
+            _m("glm-5.3", "GLM 5.3"),
+            _m("deepseek-v4-pro-0813", "DeepSeek V4 Pro 0813"),
+            _m("qwen3.8-2.4t-a95b", "Qwen3.8 2.4T A95B"),
+            _m("qwen3.8-max", "Qwen3.8 Max"),
+            _m("qwen3.7-flash", "Qwen3.7 Flash"),
         ),
     ),
     ProviderSpec(

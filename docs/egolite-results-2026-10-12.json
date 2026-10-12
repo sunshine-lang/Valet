@@ -1,0 +1,544 @@
+[
+  {
+    "id": "M01_real_connection",
+    "status": "PASS",
+    "details": {
+      "browser": "Ego Lite",
+      "provider": "dashscope",
+      "connection": "连接成功",
+      "max_output_tokens": 1
+    },
+    "observed_at": "2026-10-12T15:09:04.817Z"
+  },
+  {
+    "id": "T01_default_tools",
+    "status": "PASS",
+    "details": {
+      "enabled_tools": [
+        "get_weather",
+        "web_search",
+        "ls",
+        "read_file",
+        "write_file",
+        "str_replace",
+        "read_skill",
+        "create_skill"
+      ],
+      "examples_disabled": true
+    },
+    "observed_at": "2026-10-12T15:09:04.827Z"
+  },
+  {
+    "id": "M02_saved_config",
+    "status": "PASS",
+    "details": {
+      "provider": "dashscope",
+      "model": "deepseek-v4-flash-0731",
+      "api_key_set": true,
+      "public_key_omitted": true
+    },
+    "observed_at": "2026-10-12T15:09:06.147Z"
+  },
+  {
+    "id": "M05_timeout_settings_persist",
+    "status": "PASS",
+    "details": {
+      "run_timeout_s": 180,
+      "stream_idle_s": 15
+    },
+    "observed_at": "2026-10-12T15:10:13.123Z"
+  },
+  {
+    "id": "M06_idle_timeout",
+    "status": "PASS",
+    "details": {
+      "status": "failed",
+      "stop_reason": "stream_idle",
+      "error": "模型超过 15 秒没有新输出",
+      "duration_ms": 15011,
+      "step_status": "timeout"
+    },
+    "observed_at": "2026-10-12T15:10:28.594Z"
+  },
+  {
+    "id": "T02_disabled_tool_blocked",
+    "status": "PASS",
+    "details": {
+      "guardrails": [
+        {
+          "name": "tool_blocked",
+          "status": "blocked",
+          "reason": {
+            "reason": "工具 calculator 未在当前配置中启用"
+          }
+        }
+      ],
+      "executed_tool_steps": 0
+    },
+    "observed_at": "2026-10-12T15:11:01.598Z"
+  },
+  {
+    "id": "T03_before_confirmation",
+    "status": "PASS",
+    "details": {
+      "status": "awaiting_confirmation",
+      "pending_steps": 1,
+      "executed_tools": 0
+    },
+    "observed_at": "2026-10-12T15:11:30.250Z"
+  },
+  {
+    "id": "T04_reject_confirmation",
+    "status": "PASS",
+    "details": {
+      "guard_status": "rejected",
+      "executed_tools": 0
+    },
+    "observed_at": "2026-10-12T15:11:30.432Z"
+  },
+  {
+    "id": "T05_allow_confirmation",
+    "status": "PASS",
+    "details": {
+      "guard_status": "approved",
+      "tool_output": {
+        "delivered": true,
+        "simulated": true,
+        "notification_id": "ntf_af9396c8bd",
+        "recipient": "演示用户",
+        "channel": "im"
+      }
+    },
+    "observed_at": "2026-10-12T15:11:31.169Z"
+  },
+  {
+    "id": "T06_network_waits_for_approval",
+    "status": "PASS",
+    "details": {
+      "network_calls_before": 0,
+      "status": "awaiting_confirmation"
+    },
+    "observed_at": "2026-10-12T15:12:27.890Z"
+  },
+  {
+    "id": "R01_trace_fields_visible",
+    "status": "PASS",
+    "details": {
+      "has_token_stats": true,
+      "tool_parameters_visible": true,
+      "input_tokens": 870,
+      "output_tokens": 54
+    },
+    "observed_at": "2026-10-12T15:13:23.489Z"
+  },
+  {
+    "id": "R04_export_entry",
+    "status": "FAIL",
+    "details": {
+      "download_controls": [],
+      "json_api_available": true,
+      "api_key_omitted": true
+    },
+    "observed_at": "2026-10-12T15:13:23.490Z"
+  },
+  {
+    "id": "T10_tool_switch_restart",
+    "status": "FAIL",
+    "details": {
+      "before": [],
+      "after": [
+        "ls",
+        "read_file",
+        "write_file",
+        "str_replace",
+        "read_skill",
+        "create_skill"
+      ],
+      "before_pid": 57947,
+      "after_pid": 58954
+    },
+    "observed_at": "2026-10-12T15:14:57.697Z"
+  },
+  {
+    "id": "T07_session_network_grant",
+    "status": "PASS",
+    "details": {
+      "network_calls": 2,
+      "second_run_tool_steps": 1,
+      "second_run_confirmation_steps": 0,
+      "actual_external_requests": 0
+    },
+    "observed_at": "2026-10-12T15:15:02.015Z"
+  },
+  {
+    "id": "T08_upload_readonly",
+    "status": "FAIL",
+    "details": {
+      "original_changed": true,
+      "tools": [
+        {
+          "name": "read_file",
+          "status": "ok",
+          "path": ".valet/sessions/fa652f98-b572-4e27-a60f-e53204a6986f/uploads/qa-upload-protection.txt"
+        },
+        {
+          "name": "write_file",
+          "status": "ok",
+          "path": ".valet/sessions/fa652f98-b572-4e27-a60f-e53204a6986f/uploads/qa-upload-protection.txt"
+        }
+      ]
+    },
+    "observed_at": "2026-10-12T15:15:02.570Z"
+  },
+  {
+    "id": "T09_sensitive_path",
+    "status": "FAIL",
+    "details": {
+      "path": "../outside/.env",
+      "read_status": "ok",
+      "dummy_sensitive_content_read": true,
+      "confirmation_action": "read"
+    },
+    "observed_at": "2026-10-12T15:16:06.860Z"
+  },
+  {
+    "id": "T11_outside_ls",
+    "status": "FAIL",
+    "details": {
+      "confirmation_steps": 0,
+      "tool_error": "路径在项目目录之外，需要授权后才能读取"
+    },
+    "observed_at": "2026-10-12T15:16:07.233Z"
+  },
+  {
+    "id": "T12_default_project_write",
+    "status": "OBSERVED",
+    "details": {
+      "permission_mode": "assist",
+      "project_file_created": true,
+      "confirmation_steps": 0
+    },
+    "observed_at": "2026-10-12T15:16:07.723Z"
+  },
+  {
+    "id": "M03_provider_key_switch",
+    "status": "OUT_OF_SCOPE",
+    "details": {
+      "reason": "用户确认目前仅接入百炼；此为假密钥边界测试，不作为当前百炼功能验收失败。",
+      "real_other_provider_requests": 0
+    },
+    "observed_at": "2026-10-12T15:17:05.279Z"
+  },
+  {
+    "id": "M07_environment_base_url",
+    "status": "OPTIONAL_BOUNDARY",
+    "details": {
+      "configured_environment_base": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+      "resolved_base": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "reason": "当前验收使用百炼现有接口，地域覆盖问题单独列为配置边界。"
+    },
+    "observed_at": "2026-10-12T15:17:05.281Z"
+  },
+  {
+    "id": "S01_create_and_reload",
+    "status": "PASS",
+    "details": {
+      "tasks": [
+        {
+          "id": "c464c986-00ef-4f7e-a05f-1d4bf0ab9418",
+          "name": "QA启动失败恢复",
+          "repeat": "once",
+          "next_run_at": "2026-10-12T15:20:16+00:00",
+          "enabled": true
+        },
+        {
+          "id": "3ec959e8-0b6b-4c06-8f47-859a9018f86a",
+          "name": "QA正常重启恢复",
+          "repeat": "once",
+          "next_run_at": "2026-10-12T15:19:52+00:00",
+          "enabled": true
+        }
+      ],
+      "scheduled_runs_before_restart": 0
+    },
+    "observed_at": "2026-10-12T15:18:13.848Z"
+  },
+  {
+    "id": "S02_restored_in_new_process",
+    "status": "PASS",
+    "details": {
+      "before_pid": 59991,
+      "after_pid": 60223,
+      "task_id": "a2440f1d-46f2-49e6-a56d-5bebedb8aaeb",
+      "next_run_at": "2026-10-12T15:23:35+00:00",
+      "same_next_run_at": true
+    },
+    "observed_at": "2026-10-12T15:23:08.523Z"
+  },
+  {
+    "id": "S04_failed_once_retry",
+    "status": "FAIL",
+    "details": {
+      "enabled": false,
+      "next_run_at": null,
+      "last_run_at": "2026-10-12T15:21:15.045938+00:00",
+      "actual_runs": 0,
+      "error_field_present": false
+    },
+    "observed_at": "2026-10-12T15:23:08.524Z"
+  },
+  {
+    "id": "S03_restart_and_execute",
+    "status": "PASS",
+    "details": {
+      "server_pid": 60223,
+      "task_id": "a2440f1d-46f2-49e6-a56d-5bebedb8aaeb",
+      "run_status": "completed",
+      "last_run_at": "2026-10-12T15:23:44.128010+00:00",
+      "visible_completed_message": true,
+      "default_poll_seconds": 20
+    },
+    "observed_at": "2026-10-12T15:25:01.295Z"
+  },
+  {
+    "id": "MODEL_deepseek-v4-flash-0731",
+    "status": "PASS",
+    "details": {
+      "model": "deepseek-v4-flash-0731",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 1770
+    },
+    "observed_at": "2026-10-12T15:25:05.803Z"
+  },
+  {
+    "id": "MODEL_qwen3.8-max-0902",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.8-max-0902",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 4418
+    },
+    "observed_at": "2026-10-12T15:25:05.804Z"
+  },
+  {
+    "id": "MODEL_deepseek-v4.1-flash",
+    "status": "PASS",
+    "details": {
+      "model": "deepseek-v4.1-flash",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 2357
+    },
+    "observed_at": "2026-10-12T15:25:05.805Z"
+  },
+  {
+    "id": "M08_bailian_catalog",
+    "status": "PASS",
+    "details": {
+      "count": 12,
+      "ids": [
+        "deepseek-v4-flash-0731",
+        "qwen3.8-max-0902",
+        "deepseek-v4.1-flash",
+        "qwen3.8-27b",
+        "qwen3.7-flash-2026-07-15",
+        "qwen3.8-flash",
+        "kimi-k3",
+        "glm-5.3",
+        "deepseek-v4-pro-0813",
+        "qwen3.8-2.4t-a95b",
+        "qwen3.8-max",
+        "qwen3.7-flash"
+      ],
+      "preserved_default": "deepseek-v4.1-flash"
+    },
+    "observed_at": "2026-10-12T15:26:55.619Z"
+  },
+  {
+    "id": "M09_runtime_reload_preserved",
+    "status": "PASS",
+    "details": {
+      "default_model": "deepseek-v4.1-flash",
+      "run_total": 12,
+      "session_total": 7,
+      "api_key_set": true,
+      "enabled_tools_preserved": true
+    },
+    "observed_at": "2026-10-12T15:26:55.621Z"
+  },
+  {
+    "id": "MODEL_qwen3.8-27b",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.8-27b",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 9988
+    },
+    "observed_at": "2026-10-12T15:27:07.713Z"
+  },
+  {
+    "id": "MODEL_qwen3.7-flash-2026-07-15",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.7-flash-2026-07-15",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 4100
+    },
+    "observed_at": "2026-10-12T15:27:07.714Z"
+  },
+  {
+    "id": "MODEL_qwen3.8-flash",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.8-flash",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 8805
+    },
+    "observed_at": "2026-10-12T15:27:07.715Z"
+  },
+  {
+    "id": "MODEL_kimi-k3",
+    "status": "PASS",
+    "details": {
+      "model": "kimi-k3",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 1403
+    },
+    "observed_at": "2026-10-12T15:28:09.319Z"
+  },
+  {
+    "id": "MODEL_glm-5.3",
+    "status": "PASS",
+    "details": {
+      "model": "glm-5.3",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 1784
+    },
+    "observed_at": "2026-10-12T15:28:09.322Z"
+  },
+  {
+    "id": "MODEL_deepseek-v4-pro-0813",
+    "status": "PASS",
+    "details": {
+      "model": "deepseek-v4-pro-0813",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 712
+    },
+    "observed_at": "2026-10-12T15:28:09.323Z"
+  },
+  {
+    "id": "M10_new_model_selection_persist",
+    "status": "PASS",
+    "details": {
+      "provider": "dashscope",
+      "model": "qwen3.8-flash",
+      "instance": "isolated"
+    },
+    "observed_at": "2026-10-12T15:29:26.122Z"
+  },
+  {
+    "id": "M04_mock_mode_label",
+    "status": "OBSERVED",
+    "details": {
+      "provider": "dashscope",
+      "configured_model": "qwen3.8-flash",
+      "response_model": "mock",
+      "reply_marks_mock": true,
+      "separate_mode_badge": false,
+      "switch_requires_restart": true
+    },
+    "observed_at": "2026-10-12T15:29:26.497Z"
+  },
+  {
+    "id": "MODEL_qwen3.8-2.4t-a95b",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.8-2.4t-a95b",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 9013
+    },
+    "observed_at": "2026-10-12T15:29:35.524Z"
+  },
+  {
+    "id": "MODEL_qwen3.8-max",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.8-max",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 7689
+    },
+    "observed_at": "2026-10-12T15:29:35.525Z"
+  },
+  {
+    "id": "MODEL_qwen3.7-flash",
+    "status": "PASS",
+    "details": {
+      "model": "qwen3.7-flash",
+      "status": 200,
+      "ok": true,
+      "message": "",
+      "duration_ms": 5960
+    },
+    "observed_at": "2026-10-12T15:29:35.526Z"
+  },
+  {
+    "id": "R02_tool_timing",
+    "status": "FAIL",
+    "details": {
+      "configured_provider": "dashscope",
+      "configured_model": "qwen3.8-flash",
+      "tool_requested_seconds": 2,
+      "step_duration_ms": 3,
+      "run_duration_ms": 2243
+    },
+    "observed_at": "2026-10-12T15:31:06.580Z"
+  },
+  {
+    "id": "R03_cancelled_tool_step",
+    "status": "FAIL",
+    "details": {
+      "configured_provider": "dashscope",
+      "configured_model": "qwen3.8-flash",
+      "run_status": "cancelled",
+      "tool_steps": 0
+    },
+    "observed_at": "2026-10-12T15:31:09.619Z"
+  },
+  {
+    "id": "FINAL_runtime",
+    "status": "PASS",
+    "details": {
+      "provider": "dashscope",
+      "model": "deepseek-v4.1-flash",
+      "health": {
+        "ok": true,
+        "name": "Valet",
+        "llm_provider": "dashscope",
+        "llm_configured": true
+      },
+      "catalog_count": 12
+    },
+    "observed_at": "2026-10-12T15:31:09.647Z"
+  }
+]
