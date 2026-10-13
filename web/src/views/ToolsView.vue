@@ -12,16 +12,11 @@ const enabled = ref<Set<string>>(new Set())
 
 const groups = computed(() => [
   {
-    title: '正式工具',
-    hint: '新项目默认打开。天气、搜索和会话里的文件都在这里。',
-    items: tools.value.filter((tool) => !tool.example),
+    title: '可用工具',
+    hint: '计算、时间、联网与文件工具均执行真实操作。按需调整开关。',
+    items: tools.value,
   },
-  {
-    title: '示例工具',
-    hint: '用来试主循环的几条路径，默认关闭。需要时再打开。',
-    items: tools.value.filter((tool) => tool.example),
-  },
-])
+].filter((group) => group.items.length))
 
 onMounted(async () => {
   const [t, cfg] = await Promise.all([api.listTools(), api.getAgentConfig()])

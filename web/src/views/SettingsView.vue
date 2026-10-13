@@ -39,7 +39,7 @@ const groups: { label: string; items: { id: SectionId; label: string; icon: Luci
     label: '功能',
     items: [
       { id: 'model', label: '模型', icon: CpuIcon, hint: '接口地址、API Key 和模型名称' },
-      { id: 'tools', label: '工具', icon: WrenchIcon, hint: '正式工具默认打开，示例工具用来试主循环' },
+      { id: 'tools', label: '工具', icon: WrenchIcon, hint: '工具开关、参数与超时' },
     ],
   },
   {
@@ -209,7 +209,7 @@ const itemClass = (active: boolean) =>
         </section>
 
         <section v-else-if="section === 'tools'">
-          <p class="mb-4 text-sm text-muted-foreground">正式工具默认打开。示例工具用来试主循环，默认关闭。文件只写在当前会话的目录里。</p>
+          <p class="mb-4 text-sm text-muted-foreground">按需启用工具。文件工具可访问项目目录，项目外访问由权限设置控制。</p>
           <ToolsView />
         </section>
 

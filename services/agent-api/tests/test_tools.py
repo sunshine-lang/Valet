@@ -3,18 +3,20 @@ import uuid
 import pytest
 
 from agent_api.agent.settings import AgentSettings
-from agent_api.tools import ToolContext, ToolError
+from agent_api.tools import ToolContext, ToolError, default_registry
 from agent_api.tools.live import WebSearch
 from agent_api.tools.probes import Calculator, GetCurrentTime
 
 CTX = ToolContext(session_id=uuid.uuid4(), run_id=uuid.uuid4())
 
 
-def test_new_project_leaves_example_tools_off():
+def test_new_project_only_exposes_real_tools():
     enabled = set(AgentSettings().enabled_tools)
     assert "web_search" in enabled
     assert "read_file" in enabled
-    assert "calculator" not in enabled
+    assert "calculator" in enabled
+    assert "get_current_time" in enabled
+    assert {"slow_task", "flaky_task", "send_notification"}.isdisjoint(default_registry().names())
 
 
 def test_web_search_uses_the_user_language_once():

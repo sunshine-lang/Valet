@@ -63,7 +63,7 @@ async def test_invalid_arguments_are_fed_back(client, fake_llm):
 
 
 async def test_tool_timeout(client, fake_llm, monkeypatch):
-    from agent_api.tools.probes import SlowTask
+    from probe_tools import SlowTask
 
     monkeypatch.setattr(SlowTask, "timeout_s", 0.05)
     fake_llm.script(call("slow_task", {"seconds": 1}), text("超时了"))

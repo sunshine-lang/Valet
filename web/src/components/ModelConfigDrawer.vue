@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { EyeIcon, EyeOffIcon, LoaderCircleIcon } from '@lucide/vue'
+import { ExternalLinkIcon, EyeIcon, EyeOffIcon, LoaderCircleIcon } from '@lucide/vue'
 import { computed, onMounted, ref } from 'vue'
 import { toast } from 'vue-sonner'
+import ModelSetupNotice from '@/components/ModelSetupNotice.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,7 +44,6 @@ const showKey = ref(false)
 const model = ref('')
 const toolCalling = ref(true)
 const imageInput = ref(false)
-const thinkingEffort = ref('high')
 const customProtocol = ref(false)
 const maxInput = ref<number | null>(null)
 const maxOutput = ref<number | null>(null)
@@ -59,7 +59,9 @@ const modelChoice = computed(() => {
   return models.some((item) => item.id === model.value) ? model.value : OTHER_MODEL
 })
 const keyPlaceholder = computed(() => {
-  if (loaded.value?.api_key_set) return '已保存，留空则不修改'
+  const savedBase = loaded.value?.api_base || currentProvider.value?.base_url || ''
+  const nextBase = apiBase.value.trim() || currentProvider.value?.base_url || ''
+  if (loaded.value?.api_key_set && loaded.value.provider === provider.value && savedBase === nextBase) return '已保存，留空则不修改'
   const current = currentProvider.value
   if (current?.env_key_set) return `留空则使用环境变量 ${current.env_key}`
   if (current?.env_key) return `输入 API Key，或设置 ${current.env_key}`
@@ -125,7 +127,6 @@ function apply(config: AgentConfig) {
   model.value = config.model
   toolCalling.value = config.tool_calling
   imageInput.value = config.image_input
-  thinkingEffort.value = config.thinking_effort || (config.thinking ? 'high' : 'off')
   customProtocol.value = config.custom_protocol
   maxInput.value = config.max_input_tokens
   maxOutput.value = config.max_output_tokens
@@ -134,7 +135,7 @@ function apply(config: AgentConfig) {
 }
 
 async function load() {
-  const [res, list] = await Promise.all([api.getAgentConfig(), api.listProviders()])
+  const [res, list] = await Promise.all([api.getAgentConfig(), api.listProviders(), sessions.checkHealth()])
   providers.value = list
   apply(res.config)
 }
@@ -145,6 +146,8 @@ function onProvider(value: string) {
   if (!next) return
   const baseWasDefault = !apiBase.value || apiBase.value === previous?.base_url
   provider.value = value
+  apiKey.value = ''
+  showKey.value = false
   if (baseWasDefault) apiBase.value = next.base_url
   const ids = next.models.map((item) => item.id)
   if (ids.length && !ids.includes(model.value)) model.value = ids[0]
@@ -196,14 +199,14 @@ async function save() {
       model: model.value.trim(),
       tool_calling: toolCalling.value,
       image_input: imageInput.value,
-      thinking_effort: thinkingEffort.value as AgentConfig['thinking_effort'],
       custom_protocol: customProtocol.value,
       max_input_tokens: maxInput.value,
       max_output_tokens: maxOutput.value,
     })
     apply(res.config)
-    toast.success('模型配置已保存')
-    sessions.checkHealth()
+    await sessions.checkHealth()
+    if (sessions.llmConfigured) toast.success('模型配置已保存，可以开始对话')
+    else toast.message('模型选项已保存，请继续填写 API Key')
   } catch (error) {
     toast.error(error instanceof ApiError ? error.message : '保存失败')
   } finally {
@@ -223,7 +226,7 @@ async function testConnection() {
       api_base: apiBase.value.trim(),
       api_key: apiKey.value.trim(),
       model: model.value.trim(),
-      thinking: thinkingEffort.value !== 'off',
+      thinking: loaded.value?.thinking ?? false,
     })
     toast.success('连接成功')
   } catch (error) {
@@ -235,17 +238,31 @@ async function testConnection() {
 </script>
 
 <template>
-  <div class="max-w-xl">
+  <div class="max-w-xl space-y-4">
+      <ModelSetupNotice v-if="sessions.llmConfigured === false" :show-link="false" />
       <div v-if="loaded" class="space-y-4 rounded-2xl border p-5">
         <div class="space-y-1.5">
-          <Label>供应商</Label>
+          <div class="flex items-center justify-between gap-2">
+            <Label>供应商（OpenAI 兼容 API）</Label>
+            <a
+              v-if="currentProvider?.docs_url"
+              :href="currentProvider.docs_url"
+              :aria-label="`查看${currentProvider.name}官方 API 文档`"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground hover:text-foreground hover:underline"
+            >
+              查看文档
+              <ExternalLinkIcon class="size-3.5" aria-hidden="true" />
+            </a>
+          </div>
           <Select :model-value="provider" @update:model-value="(value) => onProvider(String(value))">
             <SelectTrigger class="w-full"><SelectValue placeholder="选择供应商" /></SelectTrigger>
             <SelectContent>
               <SelectItem v-for="item in providers" :key="item.id" :value="item.id">{{ item.name }}</SelectItem>
             </SelectContent>
           </Select>
-          <p class="text-xs text-muted-foreground">主流供应商走各自的 OpenAI 兼容接口。选「自定义」可填写任意兼容地址。</p>
+          <p class="text-xs text-muted-foreground">当前项目已验证阿里云百炼的 12 个模型。填写 API Key 后可先测试连接，再保存配置。</p>
         </div>
 
         <div class="space-y-1.5">
@@ -314,19 +331,6 @@ async function testConnection() {
             autocomplete="off"
           />
           <p v-if="capabilityText" class="text-xs text-muted-foreground">{{ capabilityText }}</p>
-        </div>
-        <div class="space-y-1.5">
-          <Label for="thinking-effort">思考强度</Label>
-          <Select :model-value="thinkingEffort" @update:model-value="(value) => (thinkingEffort = String(value))">
-            <SelectTrigger id="thinking-effort" class="w-full"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="off">关闭</SelectItem>
-              <SelectItem value="low">低</SelectItem>
-              <SelectItem value="medium">中</SelectItem>
-              <SelectItem value="high">高</SelectItem>
-              <SelectItem value="max">极高</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
 
         <template v-if="showAdvanced">

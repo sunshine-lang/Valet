@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "小e 智能体调试台后端：智能体主循环、工具、护栏与追踪"
 requires-python = ">=3.12"
 dependencies = [
+    "aiosqlite>=0.22.1",
     "asyncpg>=0.32.0",
     "fastapi>=0.143.0",
     "httpx[socks]>=0.28.1",
@@ -32,7 +33,6 @@ select = ["E", "F", "I", "B", "UP", "ASYNC"]
 
 [dependency-groups]
 dev = [
-    "aiosqlite>=0.22.1",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",

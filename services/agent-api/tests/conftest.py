@@ -5,10 +5,12 @@ from typing import Any
 
 import httpx
 import pytest
+from probe_tools import PROBE_TOOLS
 
 from agent_api.config import Settings
 from agent_api.llm import LLMRequest, LLMResult, TextDelta, ToolCall
 from agent_api.main import create_app
+from agent_api.tools import ToolRegistry, default_registry
 
 Reply = LLMResult | Callable[[LLMRequest], LLMResult]
 
@@ -64,7 +66,6 @@ async def _enable_example_tools(app) -> None:
     """示例工具默认关闭。循环测试仍要走探针路径，所以测试库里把它们打开。"""
     from agent_api.agent.settings import AgentSettings
     from agent_api.models import AgentConfig
-    from agent_api.tools.probes import PROBE_TOOLS
 
     async with app.state.db.sessionmaker() as session:
         data = AgentSettings().model_dump()
@@ -90,7 +91,8 @@ async def client(tmp_path, fake_llm) -> AsyncIterator[httpx.AsyncClient]:
         upload_dir=str(tmp_path / "workspaces"),
         user_skills_dir=str(tmp_path / "user-skills"),
     )
-    app = create_app(settings=settings, llm=fake_llm)
+    registry = ToolRegistry([*default_registry().all(), *PROBE_TOOLS])
+    app = create_app(settings=settings, llm=fake_llm, registry=registry)
     async with app.router.lifespan_context(app):
         await _enable_example_tools(app)
         transport = httpx.ASGITransport(app=app)

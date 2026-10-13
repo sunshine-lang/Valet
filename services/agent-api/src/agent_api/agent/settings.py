@@ -6,6 +6,7 @@ from agent_api.config import get_settings
 from agent_api.llm.providers import find_model
 from agent_api.tools.files import FILE_TOOLS
 from agent_api.tools.live import LIVE_TOOLS
+from agent_api.tools.probes import UTILITY_TOOLS
 from agent_api.tools.skills import SKILL_TOOLS
 
 
@@ -34,7 +35,7 @@ class AgentSettings(BaseModel):
     api_base: str = Field("", max_length=500)
     api_key: str = Field("", max_length=500)
     model: str = Field(
-        "deepseek-v4-flash-0731",
+        default_factory=lambda: get_settings().dashscope_model,
         min_length=1,
         max_length=128,
         description="模型 ID",
@@ -130,7 +131,9 @@ class AgentSettings(BaseModel):
     )
     max_consecutive_failures: int = Field(3, ge=1, le=10, description="工具连续失败几次后停止")
     enabled_tools: list[str] = Field(
-        default_factory=lambda: [t.name for t in (*LIVE_TOOLS, *FILE_TOOLS, *SKILL_TOOLS)]
+        default_factory=lambda: [
+            t.name for t in (*UTILITY_TOOLS, *LIVE_TOOLS, *FILE_TOOLS, *SKILL_TOOLS)
+        ]
     )
     # None 表示当前目录里的技能全部可用。设成列表后，只把列出的技能交给模型。
     installed_skills: list[str] | None = None

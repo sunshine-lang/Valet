@@ -181,6 +181,7 @@ export interface ProviderInfo {
   id: string
   name: string
   base_url: string
+  docs_url: string
   env_key: string
   env_key_set: boolean
   models: { id: string; label: string; description: string; tools: boolean; image: boolean }[]

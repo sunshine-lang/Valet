@@ -8,6 +8,7 @@ export const useSessionsStore = defineStore('sessions', () => {
   const usage = ref<Usage | null>(null)
   const agentName = ref('Valet')
   const llmConfigured = ref<boolean | null>(null)
+  const modelSetupMessage = ref<string | null>(null)
   const backendOnline = ref<boolean | null>(null)
 
   async function refresh() {
@@ -31,6 +32,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     try {
       const h = await api.health()
       llmConfigured.value = h.llm_configured
+      modelSetupMessage.value = h.setup_message
       backendOnline.value = true
       if (h.name) {
         agentName.value = h.name
@@ -51,6 +53,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     usage,
     agentName,
     llmConfigured,
+    modelSetupMessage,
     backendOnline,
     refresh,
     refreshUsage,

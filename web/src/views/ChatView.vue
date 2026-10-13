@@ -14,6 +14,7 @@ import AgentOrb from '@/components/AgentOrb.vue'
 import Composer from '@/components/Composer.vue'
 import ConfirmationCard from '@/components/ConfirmationCard.vue'
 import MarkdownText from '@/components/MarkdownText.vue'
+import ModelSetupNotice from '@/components/ModelSetupNotice.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import RunActivity from '@/components/RunActivity.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -79,6 +80,7 @@ function scrollToBottom() {
 }
 
 const agentName = computed(() => sessions.agentName)
+const modelReady = computed(() => sessions.llmConfigured === true && sessions.backendOnline === true)
 
 const PROBES = [
   { icon: CloudSunIcon, label: '杭州天气预报', prompt: '帮我查一下杭州今天的天气' },
@@ -88,7 +90,9 @@ const PROBES = [
 ]
 
 const emptyPlaceholder = computed(() =>
-  previewPrompt.value ? '' : '问点什么，或者指向下面的推荐任务看看提示…',
+  sessions.llmConfigured === false
+    ? '配置模型后即可开始对话…'
+    : previewPrompt.value ? '' : '问点什么，或者指向下面的推荐任务看看提示…',
 )
 
 const composerPlaceholder = computed(() => {
@@ -140,6 +144,7 @@ const contextEstimate = computed(() => {
 })
 
 onMounted(async () => {
+  await sessions.checkHealth()
   try {
     const [cfg, list, installed] = await Promise.all([
       api.getAgentConfig(),
@@ -240,6 +245,10 @@ function skillTitle(name: string) {
 }
 
 async function submit(text: string, files: File[] = [], skills: string[] = []) {
+  if (!modelReady.value) {
+    router.push('/settings/model')
+    return
+  }
   stickToBottom.value = true
   if (!sessionId.value) {
     const id = await chat.ensureSession()
@@ -308,10 +317,12 @@ watch(
       <h2 class="mt-7 text-2xl font-semibold tracking-tight">想让 {{ agentName }} 做什么？</h2>
       <p class="mt-2 text-sm text-muted-foreground">通用智能体调试台：跑通主循环、工具调用和全链路追踪。</p>
       <div class="mt-8 w-full max-w-2xl">
+        <ModelSetupNotice v-if="sessions.llmConfigured === false" class="mb-4" />
         <Composer
           ref="composer"
           v-model="input"
           hero
+          :disabled="!modelReady"
           :model="agentConfig?.model"
           :models="models"
           :effort="agentConfig?.thinking_effort"
@@ -327,7 +338,7 @@ watch(
           @submit="submit"
         />
       </div>
-      <div class="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
+      <div v-if="modelReady" class="mt-4 flex max-w-2xl flex-wrap justify-center gap-2">
         <button
           v-for="p in PROBES"
           :key="p.label"
@@ -469,6 +480,7 @@ watch(
     </div>
 
     <div class="mx-auto w-full max-w-3xl px-6 pb-5">
+      <ModelSetupNotice v-if="sessions.llmConfigured === false" class="mb-4" />
       <div v-if="outputs.length" class="mb-2 flex flex-wrap gap-2">
         <a
           v-for="file in outputs"
@@ -482,6 +494,7 @@ watch(
       <Composer
         v-model="input"
         :busy="chat.busy"
+        :disabled="!modelReady"
         :model="agentConfig?.model"
         :models="models"
         :effort="agentConfig?.thinking_effort"

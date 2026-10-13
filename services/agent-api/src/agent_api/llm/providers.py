@@ -7,7 +7,17 @@
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from agent_api.config import get_settings
+from agent_api.config import Settings, get_settings
+
+MODEL_SETUP_MESSAGE = (
+    "尚未配置模型。请在项目根目录创建或编辑 .env（首次可复制 .env.example），"
+    "填写 DASHSCOPE_API_KEY；"
+    "也可以前往「设置 → 模型」填写 API Key 和模型。修改 .env 后需要重启后端。"
+)
+
+
+class ModelConfigurationError(Exception):
+    pass
 
 ReasoningStyle = Literal["dashscope", "deepseek", "openai", "none", "auto"]
 
@@ -30,6 +40,7 @@ class ProviderSpec:
     id: str
     name: str
     base_url: str
+    docs_url: str
     env_attr: str
     env_key: str
     reasoning: ReasoningStyle
@@ -52,6 +63,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="dashscope",
         name="阿里云百炼",
         base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        docs_url="https://help.aliyun.com/zh/model-studio/get-api-key",
         env_attr="dashscope_api_key",
         env_key="DASHSCOPE_API_KEY",
         reasoning="dashscope",
@@ -83,6 +95,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="deepseek",
         name="DeepSeek",
         base_url="https://api.deepseek.com",
+        docs_url="https://api-docs.deepseek.com/zh-cn/",
         env_attr="deepseek_api_key",
         env_key="DEEPSEEK_API_KEY",
         reasoning="deepseek",
@@ -95,6 +108,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="moonshotai-cn",
         name="Moonshot（中国）",
         base_url="https://api.moonshot.cn/v1",
+        docs_url="https://platform.kimi.com/docs/get-api-key",
         env_attr="moonshot_api_key",
         env_key="MOONSHOT_API_KEY",
         reasoning="none",
@@ -108,6 +122,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="moonshotai",
         name="Moonshot",
         base_url="https://api.moonshot.ai/v1",
+        docs_url="https://platform.kimi.com/docs/get-api-key",
         env_attr="moonshot_api_key",
         env_key="MOONSHOT_API_KEY",
         reasoning="none",
@@ -120,6 +135,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="zai",
         name="智谱",
         base_url="https://open.bigmodel.cn/api/paas/v4",
+        docs_url="https://docs.bigmodel.cn/cn/guide/start/introduction",
         env_attr="zai_api_key",
         env_key="ZAI_API_KEY",
         reasoning="none",
@@ -133,6 +149,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="minimax",
         name="MiniMax",
         base_url="https://api.minimaxi.com/v1",
+        docs_url="https://platform.minimax.cn/docs/api-reference/text-openai-api",
         env_attr="minimax_api_key",
         env_key="MINIMAX_API_KEY",
         reasoning="none",
@@ -145,6 +162,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="openai",
         name="OpenAI",
         base_url="https://api.openai.com/v1",
+        docs_url="https://developers.openai.com/api/docs/",
         env_attr="openai_api_key",
         env_key="OPENAI_API_KEY",
         reasoning="openai",
@@ -160,6 +178,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="google",
         name="Google",
         base_url="https://generativelanguage.googleapis.com/v1beta/openai",
+        docs_url="https://ai.google.dev/gemini-api/docs/openai",
         env_attr="gemini_api_key",
         env_key="GEMINI_API_KEY",
         reasoning="none",
@@ -172,6 +191,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="xai",
         name="xAI",
         base_url="https://api.x.ai/v1",
+        docs_url="https://docs.x.ai/overview",
         env_attr="xai_api_key",
         env_key="XAI_API_KEY",
         reasoning="none",
@@ -184,6 +204,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="groq",
         name="Groq",
         base_url="https://api.groq.com/openai/v1",
+        docs_url="https://console.groq.com/docs/overview",
         env_attr="groq_api_key",
         env_key="GROQ_API_KEY",
         reasoning="none",
@@ -196,6 +217,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="mistral",
         name="Mistral",
         base_url="https://api.mistral.ai/v1",
+        docs_url="https://docs.mistral.ai/api",
         env_attr="mistral_api_key",
         env_key="MISTRAL_API_KEY",
         reasoning="none",
@@ -208,6 +230,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="openrouter",
         name="OpenRouter",
         base_url="https://openrouter.ai/api/v1",
+        docs_url="https://openrouter.ai/docs/quickstart",
         env_attr="openrouter_api_key",
         env_key="OPENROUTER_API_KEY",
         reasoning="none",
@@ -222,6 +245,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="cerebras",
         name="Cerebras",
         base_url="https://api.cerebras.ai/v1",
+        docs_url="https://inference-docs.cerebras.ai/",
         env_attr="cerebras_api_key",
         env_key="CEREBRAS_API_KEY",
         reasoning="none",
@@ -231,6 +255,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="together",
         name="Together",
         base_url="https://api.together.ai/v1",
+        docs_url="https://docs.together.ai/docs/quickstart",
         env_attr="together_api_key",
         env_key="TOGETHER_API_KEY",
         reasoning="none",
@@ -240,6 +265,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="fireworks",
         name="Fireworks",
         base_url="https://api.fireworks.ai/inference/v1",
+        docs_url="https://docs.fireworks.ai/getting-started/introduction",
         env_attr="fireworks_api_key",
         env_key="FIREWORKS_API_KEY",
         reasoning="none",
@@ -249,6 +275,7 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         id="custom",
         name="自定义",
         base_url="",
+        docs_url="",
         env_attr="",
         env_key="",
         reasoning="auto",
@@ -344,24 +371,33 @@ def reasoning_params(
     return {}
 
 
-def resolve_credentials(*, provider: str, api_base: str, api_key: str) -> tuple[str, str]:
-    """页面上的密钥和地址优先；留空时用该供应商的默认地址和环境变量。"""
-    env = get_settings()
+def resolve_credentials(
+    *, provider: str, api_base: str, api_key: str, settings: Settings | None = None
+) -> tuple[str, str]:
+    """页面配置优先，其次使用对应供应商的环境配置，最后使用目录默认地址。"""
+    env = settings or get_settings()
     spec = get_provider(provider)
-    base = api_base or (spec.base_url if spec else "")
+    env_base = env.dashscope_base_url if provider in ("dashscope", "") else ""
+    base = api_base or env_base or (spec.base_url if spec else "")
     key = api_key
     if not key and spec and spec.env_attr:
         key = getattr(env, spec.env_attr, "") or ""
-    if provider in ("custom", "dashscope", ""):
-        if not base:
-            base = env.dashscope_base_url
-        if not key:
-            key = env.dashscope_api_key
     return key, base
 
 
-def provider_payload() -> list[dict[str, Any]]:
-    env = get_settings()
+def require_credentials(
+    *, provider: str, api_base: str, api_key: str, settings: Settings | None = None
+) -> tuple[str, str]:
+    key, base = resolve_credentials(
+        provider=provider, api_base=api_base, api_key=api_key, settings=settings
+    )
+    if not key or not base:
+        raise ModelConfigurationError(MODEL_SETUP_MESSAGE)
+    return key, base
+
+
+def provider_payload(settings: Settings | None = None) -> list[dict[str, Any]]:
+    env = settings or get_settings()
     rows: list[dict[str, Any]] = []
     for spec in PROVIDERS:
         env_set = bool(spec.env_attr and getattr(env, spec.env_attr, ""))
@@ -369,7 +405,10 @@ def provider_payload() -> list[dict[str, Any]]:
             {
                 "id": spec.id,
                 "name": spec.name,
-                "base_url": spec.base_url,
+                "docs_url": spec.docs_url,
+                "base_url": resolve_credentials(
+                    provider=spec.id, api_base="", api_key="", settings=env
+                )[1],
                 "env_key": spec.env_key,
                 "env_key_set": env_set,
                 "models": [

@@ -16,12 +16,19 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agent_api.agent.context import serialize_message
-from agent_api.agent.runs import EventStream, RunConflict, RunManager, RunNotFound
-from agent_api.agent.settings import AgentSettings, normalize_api_base
+from agent_api.agent.runs import (
+    EventStream,
+    RunConflict,
+    RunManager,
+    RunNotFound,
+    load_agent_settings,
+)
+from agent_api.agent.settings import AgentSettings, default_system_prompt, normalize_api_base
 from agent_api.config import get_settings
 from agent_api.db import Database
 from agent_api.llm import MODEL_CATALOG
 from agent_api.llm.providers import (
+    MODEL_SETUP_MESSAGE,
     known_provider,
     provider_payload,
     reasoning_params,
@@ -83,17 +90,20 @@ def _serialize_session(s: ChatSession) -> dict[str, Any]:
 @router.get("/health")
 async def health(request: Request) -> dict[str, Any]:
     settings = request.app.state.settings
-    configured = settings.llm_provider == "mock" or bool(settings.dashscope_api_key)
     db: Database = request.app.state.db
-    async with db.sessionmaker() as session:
-        row = await session.get(AgentConfig, 1)
-        if row is not None and AgentSettings.model_validate(row.data).api_key:
-            configured = True
+    current = await load_agent_settings(db, settings)
+    key, base = resolve_credentials(
+        provider=current.provider, api_base=current.api_base, api_key=current.api_key,
+        settings=settings,
+    )
+    configured = bool(key and base)
     return {
         "ok": True,
         "name": settings.agent_name,
-        "llm_provider": settings.llm_provider,
+        "llm_provider": current.provider,
         "llm_configured": configured,
+        "model": current.model,
+        "setup_message": None if configured else MODEL_SETUP_MESSAGE,
     }
 
 
@@ -479,27 +489,51 @@ async def get_run(run_id: uuid.UUID, db: DbSession) -> dict[str, Any]:
 
 
 @router.get("/agent-config")
-async def get_agent_config(db: DbSession) -> dict[str, Any]:
+async def get_agent_config(db: DbSession, request: Request, registry: Registry) -> dict[str, Any]:
     row = await db.get(AgentConfig, 1)
-    current = AgentSettings.model_validate(row.data if row else {})
+    env = request.app.state.settings
+    defaults = AgentSettings(
+        model=env.dashscope_model, system_prompt=default_system_prompt(env.agent_name)
+    )
+    current = AgentSettings.model_validate(
+        {
+            "model": defaults.model,
+            "system_prompt": defaults.system_prompt,
+            **(row.data if row else {}),
+        }
+    )
+    current.enabled_tools = [name for name in current.enabled_tools if registry.get(name)]
     return {
         "config": current.public_dict(),
-        "defaults": AgentSettings().public_dict(),
+        "defaults": defaults.public_dict(),
         "updated_at": iso_utc(row.updated_at) if row else None,
     }
 
 
 @router.put("/agent-config")
 async def update_agent_config(
-    body: AgentSettings, db: DbSession, registry: Registry
+    body: AgentSettings, db: DbSession, registry: Registry, request: Request
 ) -> dict[str, Any]:
+    # 兼容旧页面保存的演示工具开关；这些工具已不在正式注册表中。
+    retired = {"slow_task", "flaky_task", "send_notification"}
+    body.enabled_tools = [
+        name for name in body.enabled_tools if registry.get(name) or name not in retired
+    ]
     unknown = set(body.enabled_tools) - set(registry.names())
     if unknown:
         raise HTTPException(422, f"未知工具：{', '.join(sorted(unknown))}")
     row = await db.get(AgentConfig, 1)
     stored = AgentSettings.model_validate(row.data) if row else None
-    if not body.api_key and stored is not None:
-        body.api_key = stored.api_key
+    if not body.api_key and stored is not None and stored.provider == body.provider:
+        env = request.app.state.settings
+        _, previous_base = resolve_credentials(
+            provider=stored.provider, api_base=stored.api_base, api_key="", settings=env
+        )
+        _, next_base = resolve_credentials(
+            provider=body.provider, api_base=body.api_base, api_key="", settings=env
+        )
+        if previous_base == next_base:
+            body.api_key = stored.api_key
     if row is None:
         row = AgentConfig(id=1, data={})
         db.add(row)
@@ -528,7 +562,9 @@ class ModelTestRequest(BaseModel):
 
 
 @router.post("/model-config/test")
-async def test_model_connection(body: ModelTestRequest, db: DbSession) -> dict[str, Any]:
+async def test_model_connection(
+    body: ModelTestRequest, db: DbSession, request: Request
+) -> dict[str, Any]:
     if not known_provider(body.provider):
         raise HTTPException(422, "未知的模型供应商")
     key = body.api_key.strip()
@@ -536,12 +572,22 @@ async def test_model_connection(body: ModelTestRequest, db: DbSession) -> dict[s
         row = await db.get(AgentConfig, 1)
         if row is not None:
             stored = AgentSettings.model_validate(row.data)
-            if stored.provider == body.provider:
+            _, stored_base = resolve_credentials(
+                provider=stored.provider, api_base=stored.api_base, api_key="",
+                settings=request.app.state.settings,
+            )
+            _, requested_base = resolve_credentials(
+                provider=body.provider, api_base=normalize_api_base(body.api_base), api_key="",
+                settings=request.app.state.settings,
+            )
+            if stored.provider == body.provider and stored_base == requested_base:
                 key = stored.api_key
     base = normalize_api_base(body.api_base)
-    key, base = resolve_credentials(provider=body.provider, api_base=base, api_key=key)
+    key, base = resolve_credentials(
+        provider=body.provider, api_base=base, api_key=key, settings=request.app.state.settings
+    )
     if not key:
-        raise HTTPException(400, "请填写 API Key")
+        raise HTTPException(400, MODEL_SETUP_MESSAGE)
     if not base:
         raise HTTPException(400, "请填写接口地址")
     effort = "high" if body.thinking else "off"
@@ -583,8 +629,8 @@ async def list_tools(registry: Registry) -> list[dict[str, Any]]:
 
 
 @router.get("/providers")
-async def list_providers() -> list[dict[str, Any]]:
-    return provider_payload()
+async def list_providers(request: Request) -> list[dict[str, Any]]:
+    return provider_payload(request.app.state.settings)
 
 
 @router.get("/models")
@@ -689,7 +735,8 @@ async def list_schedules(db: DbSession) -> list[dict[str, Any]]:
 
 
 @router.post("/schedules", status_code=201)
-async def create_schedule(body: ScheduleBody, db: DbSession) -> dict[str, Any]:
+async def create_schedule(body: ScheduleBody, db: DbSession, manager: Manager) -> dict[str, Any]:
+    await manager.configured_settings()
     task = ScheduledTask(name=body.name.strip(), prompt=body.prompt.strip())
     _fill_task(task, body)
     db.add(task)

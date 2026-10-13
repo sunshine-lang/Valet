@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from agent_api.agent.loop import AgentRunner
 from agent_api.agent.runs import (
@@ -16,8 +17,8 @@ from agent_api.api import router
 from agent_api.config import Settings, get_settings
 from agent_api.db import Database
 from agent_api.llm import LLMClient
-from agent_api.llm.mock import MockLLMClient
 from agent_api.llm.openai_compat import OpenAICompatClient
+from agent_api.llm.providers import ModelConfigurationError
 from agent_api.schedules import ScheduleClock
 from agent_api.skills import resolve_skills_dir, resolve_user_skills_dir
 from agent_api.tools import ToolRegistry, default_registry
@@ -26,14 +27,10 @@ from agent_api.uploads import resolve_upload_dir
 
 
 def build_llm(settings: Settings) -> LLMClient:
-    if settings.llm_provider == "mock":
-        return MockLLMClient()
     return OpenAICompatClient(
-        api_key=settings.dashscope_api_key or "missing-api-key",
+        api_key=settings.dashscope_api_key or "not-configured",
         base_url=settings.dashscope_base_url,
         provider="dashscope",
-        # 百炼的 Qwen3 系列默认可能开启思考；关闭后函数调用的行为和成本更可控
-        extra_body={"enable_thinking": False},
     )
 
 
@@ -67,6 +64,7 @@ def create_app(
             workspace_root,
             skills_dir,
             user_skills_dir,
+            environment=settings,
         )
         app.state.settings = settings
         app.state.db = db
@@ -74,7 +72,7 @@ def create_app(
         app.state.workspace_root = workspace_root
         app.state.skills_dir = skills_dir
         app.state.user_skills_dir = user_skills_dir
-        app.state.runs = RunManager(db, runner)
+        app.state.runs = RunManager(db, runner, settings)
         clock = ScheduleClock(db, app.state.runs)
         app.state.schedules = clock
         clock.start()
@@ -84,6 +82,14 @@ def create_app(
         await db.dispose()
 
     app = FastAPI(title=settings.agent_name, version="0.1.0", lifespan=lifespan)
+
+    @app.exception_handler(ModelConfigurationError)
+    async def model_not_configured(request: Request, error: ModelConfigurationError):
+        return JSONResponse(
+            status_code=503,
+            content={"detail": {"code": "model_not_configured", "message": str(error)}},
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[settings.web_origin],

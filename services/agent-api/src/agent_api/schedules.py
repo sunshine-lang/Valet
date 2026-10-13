@@ -13,6 +13,7 @@ from sqlalchemy import select
 from agent_api.agent.runs import EventStream, RunManager
 from agent_api.config import get_settings
 from agent_api.db import Database
+from agent_api.llm.providers import ModelConfigurationError
 from agent_api.models import ChatSession, ScheduledTask, as_utc, utcnow
 from agent_api.tracing.recorder import iso_utc
 
@@ -221,6 +222,10 @@ async def _drain(stream: EventStream) -> None:
 
 async def fire_due(db: Database, manager: RunManager, now: datetime | None = None) -> int:
     """触发所有已到点的任务。返回实际发起的次数。"""
+    try:
+        await manager.configured_settings()
+    except ModelConfigurationError:
+        return 0
     moment = as_utc(now or utcnow())
     async with db.sessionmaker() as session:
         due = list(

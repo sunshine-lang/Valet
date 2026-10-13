@@ -8,8 +8,10 @@ from sqlalchemy import func, select, update
 
 from agent_api.agent.context import serialize_message
 from agent_api.agent.loop import AgentRunner, Confirmation, SteeringInbox
-from agent_api.agent.settings import AgentSettings
+from agent_api.agent.settings import AgentSettings, default_system_prompt
+from agent_api.config import Settings, get_settings
 from agent_api.db import Database
+from agent_api.llm.providers import require_credentials
 from agent_api.models import AgentConfig, ChatSession, Message, Run, Step, utcnow
 from agent_api.tools.files import FILE_TOOL_NAMES
 from agent_api.tracing import serialize_run
@@ -53,10 +55,17 @@ class EventStream:
             yield f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
-async def load_agent_settings(db: Database) -> AgentSettings:
+async def load_agent_settings(db: Database, environment: Settings | None = None) -> AgentSettings:
+    env = environment or get_settings()
     async with db.sessionmaker() as s:
         row = await s.get(AgentConfig, 1)
-        return AgentSettings.model_validate(row.data if row else {})
+        return AgentSettings.model_validate(
+            {
+                "model": env.dashscope_model,
+                "system_prompt": default_system_prompt(env.agent_name),
+                **(row.data if row else {}),
+            }
+        )
 
 
 class _LiveRun:
@@ -67,12 +76,25 @@ class _LiveRun:
 
 
 class RunManager:
-    def __init__(self, db: Database, runner: AgentRunner) -> None:
+    def __init__(
+        self, db: Database, runner: AgentRunner, environment: Settings | None = None
+    ) -> None:
         self.db = db
         self.runner = runner
+        self.environment = environment or get_settings()
         self._tasks: dict[uuid.UUID, asyncio.Task[None]] = {}
         self._live: dict[uuid.UUID, _LiveRun] = {}
         self._lock = asyncio.Lock()
+
+    async def configured_settings(self) -> AgentSettings:
+        settings = await load_agent_settings(self.db, self.environment)
+        require_credentials(
+            provider=settings.provider,
+            api_base=settings.api_base,
+            api_key=settings.api_key,
+            settings=self.environment,
+        )
+        return settings
 
     async def start(
         self,
@@ -97,7 +119,7 @@ class RunManager:
         effort: str | None = None,
         permission_mode: str | None = None,
     ) -> EventStream | dict[str, Any]:
-        settings = await load_agent_settings(self.db)
+        settings = await self.configured_settings()
         if effort in {"off", "low", "medium", "high", "max"}:
             settings = settings.model_copy(update={"thinking_effort": effort})
         async with self.db.sessionmaker() as s:

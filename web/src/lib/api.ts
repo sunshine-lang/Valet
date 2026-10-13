@@ -38,6 +38,7 @@ async function errorMessage(res: Response): Promise<string> {
   try {
     const body = await res.json()
     if (typeof body.detail === 'string') return body.detail
+    if (typeof body.detail?.message === 'string') return body.detail.message
     return JSON.stringify(body.detail ?? body)
   } catch {
     return `${res.status} ${res.statusText}`
@@ -86,7 +87,14 @@ async function streamEvents(
 }
 
 export const api = {
-  health: () => request<{ ok: boolean; name: string; llm_configured: boolean }>('/api/health'),
+  health: () => request<{
+    ok: boolean
+    name: string
+    llm_provider: string
+    llm_configured: boolean
+    model: string
+    setup_message: string | null
+  }>('/api/health'),
 
   listSessions: () => request<ChatSession[]>('/api/sessions'),
   createSession: () => request<ChatSession>('/api/sessions', { method: 'POST' }),

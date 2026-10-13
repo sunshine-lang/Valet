@@ -51,7 +51,7 @@ class LLMResult:
 
 class LLMClient(Protocol):
     provider: str
-    # False 表示不产生真实费用（如本地模拟模型），追踪里的费用记为 0
+    # 测试客户端不产生真实费用，追踪里的费用记为 0
     priced: bool
 
     def stream(self, request: LLMRequest) -> AsyncIterator[TextDelta | ThinkingDelta | LLMResult]:

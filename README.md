@@ -26,9 +26,9 @@
 
 </div>
 
-![Valet 工作台：流式对话、工具输入输出与运行结果](docs/assets/valet-workbench.png)
+![Valet 首次启动：模型配置引导](docs/assets/valet-first-run.png)
 
-<p align="center"><sub>真实本地界面，使用 Mock 模型演示计算工具；截图中的费用为模拟运行费用。</sub></p>
+<p align="center"><sub>首次启动未配置模型时的真实界面。填写 .env 或在设置页保存模型配置后开始对话。</sub></p>
 
 ## 为什么做 Valet
 
@@ -49,14 +49,7 @@ Valet 把这些环节放进同一个工作台。你可以配置模型与提示�
 | **定时任务** | 单次、固定间隔，以及每日、每周、隔周、每月、每年执行 |
 | **网页工作台** | 对话、工具与确认卡片、追踪抽屉、模型设置、技能管理、运行记录和明暗主题 |
 
-<details>
-<summary><strong>展开查看运行追踪</strong></summary>
-
-![Valet 运行追踪：模型调用、工具调用与执行时间线](docs/assets/valet-trace.png)
-
-同一次计算运行的真实追踪记录。可展开每一步的输入、输出和属性；Mock 模式中的 Token 是近似计数，费用为 0。
-
-</details>
+运行追踪按会话、运行和步骤组织，提供输入、输出、错误、Token 与配置快照。当前工具耗时、取消步骤和下载入口仍有已记录缺口，详见 [Ego Lite 复测报告](docs/egolite-four-items-2026-10-12.md)。
 
 ## 快速开始
 
@@ -67,20 +60,33 @@ git clone https://github.com/sunshine-lang/Valet.git
 cd Valet
 ```
 
-### 方式一：免 Key 体验
+### 配置模型并启动
 
-使用 SQLite 和本地 Mock 模型，无需 Docker 或模型 API Key。
+默认使用本地 SQLite，无需 Docker。项目只运行真实模型，未配置密钥时可以启动服务，界面会引导完成模型配置。
 
-**终端一 · 后端**（从仓库根目录开始）：
+在仓库根目录复制配置模板；已有 `.env` 时直接编辑：
+
+```bash
+cp -n .env.example .env
+```
+
+填写百炼配置：
+
+```dotenv
+DASHSCOPE_API_KEY=你的百炼密钥
+DASHSCOPE_MODEL=deepseek-v4-flash-0731
+DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+```
+
+**终端一 · 后端**：
 
 ```bash
 cd services/agent-api
 uv sync --frozen
-LLM_PROVIDER=mock DATABASE_URL="sqlite+aiosqlite:///./dev.db" \
-  uv run uvicorn agent_api.main:app --reload --reload-dir src --host 127.0.0.1 --port 8000
+uv run uvicorn agent_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-**终端二 · 前端**（另开终端，从仓库根目录开始）：
+**终端二 · 前端**（从仓库根目录开始）：
 
 ```bash
 cd web
@@ -90,57 +96,27 @@ pnpm dev --host 127.0.0.1 --strictPort
 
 打开 **[http://localhost:5173](http://localhost:5173)**。后端接口文档位于 [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)。
 
-Mock 模型按关键词触发示例工具，用于体验执行链路。示例工具默认关闭，先在「设置 → 工具」中启用对应工具，再试试：
+首次启动还没有填写 `.env` 时，点击「去配置模型」，在「设置 → 模型」填写 API Key 并选择模型。保存后对话会立即可用，不必重启后端。修改 `.env` 后则需要重启后端，再刷新页面或点击「重新检查」。
 
-| 输入 | 启用的示例工具 | 观察什么 |
-| --- | --- | --- |
-| 帮我算一下 `(18 + 24) * 3` | `calculator` | 工具参数、计算结果和运行追踪 |
-| 现在北京时间是几点？ | `get_current_time` | 时间工具的真实执行结果 |
-| 执行一个 15 秒的慢任务 | `slow_task` | 单个工具超时后的错误回填 |
-| 给演示用户发通知：流程验证 | `send_notification` | 先确认、再执行；通知为模拟发送 |
-
-> Mock 模式不调用外部模型，也不产生模型费用。它不提供通用推理或真实任务规划；天气、联网搜索和文件任务的自动规划需要接入真实模型。设置页切换模型不会退出 Mock 模式，需要停止后端并按下面的真实模型方式重启。
-
-### 方式二：接入真实模型
-
-默认接入阿里云百炼的 OpenAI 兼容接口。首次配置时，在仓库根目录执行；已有 `.env` 时直接编辑：
-
-```bash
-cp .env.example .env
-```
-
-在 `.env` 中填写：
-
-```dotenv
-LLM_PROVIDER=dashscope
-DASHSCOPE_API_KEY=your_api_key
-DATABASE_URL=postgresql+asyncpg://valet:valet@localhost:5433/valet
-```
-
-启动 Docker 后运行数据库，再启动后端：
-
-```bash
-# 仓库根目录；PostgreSQL 映射到本机 5433 端口
-docker compose up -d
-
-cd services/agent-api
-uv sync --frozen
-uv run uvicorn agent_api.main:app --reload --reload-dir src --host 127.0.0.1 --port 8000
-```
-
-前端沿用方式一的命令。也可以把 `DATABASE_URL` 改为 `sqlite+aiosqlite:///./dev.db`，在本地用 SQLite 配合真实模型。
+没有配置密钥时，对话和新建定时任务会明确提示先配置模型，不会生成模拟回答；已到点的任务会等待配置，不因缺少密钥被消费。计算、时间、文件与联网工具执行真实操作；模拟通知、慢任务和随机失败工具仅用于自动化测试。
 
 | 配置 | 用途 |
 | --- | --- |
 | `AGENT_NAME` | 界面名称、接口标题，以及未保存过的默认系统提示词 |
-| `LLM_PROVIDER` | 后端客户端模式：`dashscope` 使用真实模型，`mock` 使用本地模拟模型 |
-| `DASHSCOPE_API_KEY` | 百炼模型密钥；其他供应商也可在模型设置中配置 |
-| `DASHSCOPE_BASE_URL` | 默认中国内地接口；国际地域地址见 [.env.example](.env.example) |
+| `DASHSCOPE_API_KEY` | 百炼模型密钥；设置页已保存的密钥优先，前端只接收是否已保存的状态 |
+| `DASHSCOPE_MODEL` | 未保存模型配置时的默认模型；当前已保存的选择优先 |
+| `DASHSCOPE_BASE_URL` | 百炼接口地址；页面显式地址优先，其次为环境配置，再次为目录默认地址 |
 | `BOCHA_API_KEY` / `TAVILY_API_KEY` | 联网搜索二选一；未配置时搜索工具会返回错误 |
-| `DATABASE_URL` | PostgreSQL 或 SQLite 连接地址 |
+| `DATABASE_URL` | 默认使用仓库 `.valet/valet.db`；也可配置 PostgreSQL |
 | `WEB_ORIGIN` | 前端 CORS 来源，默认 `http://localhost:5173` |
 
-模型设置提供百炼、DeepSeek、OpenAI 等供应商目录，也支持自定义兼容接口。具体模型可用性与工具能力取决于所选供应商。
+需要 PostgreSQL 时，在 `.env` 中填写以下连接地址，并先运行 `docker compose up -d`：
+
+```dotenv
+DATABASE_URL=postgresql+asyncpg://valet:valet@localhost:5433/valet
+```
+
+当前已验证的接入范围是百炼的 12 个模型。页面保留其他供应商与自定义兼容接口目录，其可用性需要分别验证。
 
 改名后，已保存的系统提示词不会自动改写；请在「设置 → 通用」中同步修改。
 
@@ -150,7 +126,7 @@ uv run uvicorn agent_api.main:app --reload --reload-dir src --host 127.0.0.1 --p
 flowchart LR
     UI[Vue 工作台] <-->|HTTP / SSE| API[FastAPI]
     API --> LOOP[Agent 主循环]
-    LOOP <-->|流式响应 / 函数调用| LLM[兼容模型接口 / Mock]
+    LOOP <-->|流式响应 / 函数调用| LLM[真实兼容模型接口]
     LOOP --> GUARD[参数校验与护栏]
     GUARD --> TOOLS[天气 / 搜索 / 文件 / Skills]
     TOOLS -->|结果回填| LOOP
@@ -189,7 +165,7 @@ Valet/
 ├── services/agent-api/
 │   ├── src/agent_api/
 │   │   ├── agent/          # 主循环、上下文、运行管理与护栏
-│   │   ├── llm/            # 模型抽象、供应商目录与 Mock
+│   │   ├── llm/            # 模型抽象与供应商目录
 │   │   ├── tools/          # 工具定义与注册
 │   │   ├── skills/         # 技能目录与导入
 │   │   ├── tracing/        # 步骤记录与导出协议
@@ -263,7 +239,7 @@ pnpm build
 | **统一上下文预算** | 统计最终请求中的历史、思考、系统提示、工具定义与技能全文；应用输入上限并预留输出空间，前端展示与实际裁剪一致 |
 | **刷新与断线恢复** | 重新打开会话可恢复活动运行状态，持续同步进度和最终结果；仍在运行的任务可停止，断线后的事件缓存受控 |
 | **定时任务失败可见、可重试** | 区分“到点触发”和“成功创建运行”；启动失败保留错误与重试入口，单次任务不会因启动失败静默跳过 |
-| **清楚展示 Mock 与真实模型** | 显示实际运行模式、配置模型与响应模型；Mock 提供可工作的探针示例，并说明切换方式；未知价格与零费用分别展示 |
+| **明确追踪价格状态** | 未知价格与零费用分别展示，避免把缺少价格目录误认为免费 |
 
 ### 第三阶段：建立自动验证与真实任务验收
 

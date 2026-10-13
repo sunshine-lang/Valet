@@ -17,9 +17,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agent_api.agent.context import PRUNE_NOTE, prune_history, serialize_message, to_llm_messages
 from agent_api.agent.guardrails import Guardrails
 from agent_api.agent.settings import AgentSettings
+from agent_api.config import Settings, get_settings
 from agent_api.db import Database
 from agent_api.llm import LLMClient, LLMRequest, LLMResult, TextDelta, ThinkingDelta, estimate_cost
-from agent_api.llm.providers import resolve_credentials
+from agent_api.llm.providers import require_credentials, resolve_credentials
 from agent_api.models import AgentConfig, ChatSession, Message, Run, Step
 from agent_api.skills import Skill, load_catalog
 from agent_api.tools import ToolContext, ToolError, ToolRegistry
@@ -167,6 +168,7 @@ class AgentRunner:
         upload_dir: Path | None = None,
         skills_dir: Path | None = None,
         user_skills_dir: Path | None = None,
+        environment: Settings | None = None,
     ) -> None:
         self.db = db
         self.llm = llm
@@ -175,6 +177,7 @@ class AgentRunner:
         self.upload_dir = upload_dir
         self.skills_dir = skills_dir
         self.user_skills_dir = user_skills_dir
+        self.environment = environment or get_settings()
 
     async def execute(
         self,
@@ -190,7 +193,17 @@ class AgentRunner:
             settings = AgentSettings.model_validate(run.config_snapshot)
             stored = await db.get(AgentConfig, 1)
             if stored is not None:
-                settings.api_key = AgentSettings.model_validate(stored.data).api_key
+                current = AgentSettings.model_validate(stored.data)
+                _, current_base = resolve_credentials(
+                    provider=current.provider, api_base=current.api_base, api_key="",
+                    settings=self.environment,
+                )
+                _, run_base = resolve_credentials(
+                    provider=settings.provider, api_base=settings.api_base, api_key="",
+                    settings=self.environment,
+                )
+                if current.provider == settings.provider and current_base == run_base:
+                    settings.api_key = current.api_key
             recorder = TraceRecorder(db, run, emit, self.exporter)
             last_seq = await db.scalar(select(func.max(Step.seq)).where(Step.run_id == run_id))
             recorder.init_seq(last_seq or 0)
@@ -226,6 +239,10 @@ class AgentRunner:
                 inbox=inbox,
             )
             try:
+                require_credentials(
+                    provider=settings.provider, api_base=settings.api_base,
+                    api_key=settings.api_key, settings=self.environment,
+                )
                 if confirmation is not None:
                     await self._process_pending_tool_calls(state, confirmation)
                 await self._loop(state)
@@ -340,10 +357,11 @@ class AgentRunner:
                 "gen_ai.request.temperature": s.settings.temperature,
             },
         )
-        key, base = resolve_credentials(
+        key, base = require_credentials(
             provider=s.settings.provider,
             api_base=s.settings.api_base,
             api_key=s.settings.api_key,
+            settings=self.environment,
         )
         request = LLMRequest(
             model=s.settings.model,

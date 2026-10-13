@@ -1,6 +1,8 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from sqlalchemy import inspect, text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -52,6 +54,9 @@ def _add_missing_columns(connection) -> None:
 
 class Database:
     def __init__(self, url: str) -> None:
+        parsed = make_url(url)
+        if parsed.drivername.startswith("sqlite") and parsed.database not in (None, ":memory:"):
+            Path(parsed.database).parent.mkdir(parents=True, exist_ok=True)
         self.engine: AsyncEngine = create_async_engine(url, pool_pre_ping=True)
         self.sessionmaker = async_sessionmaker(self.engine, expire_on_commit=False)
 
