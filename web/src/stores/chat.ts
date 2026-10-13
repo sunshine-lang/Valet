@@ -1,8 +1,8 @@
-import { defineStore } from 'pinia'
+import { acceptHMRUpdate, defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { toast } from 'vue-sonner'
 import { api, ApiError } from '@/lib/api'
-import type { Message, PendingConfirmation, Run, StreamEvent } from '@/lib/types'
+import type { Message, MessageFeedback, PendingConfirmation, Run, StreamEvent } from '@/lib/types'
 import { useSessionsStore } from './sessions'
 import { useTraceStore } from './traces'
 
@@ -185,6 +185,12 @@ export const useChatStore = defineStore('chat', () => {
     await api.cancelRun(activeRunId.value)
   }
 
+  async function setFeedback(messageId: string, feedback: MessageFeedback | null) {
+    const saved = await api.updateMessageFeedback(messageId, feedback)
+    const message = messages.value.find((item) => item.id === saved.message_id)
+    if (message) message.feedback = saved.feedback
+  }
+
   return {
     sessionId,
     messages,
@@ -203,5 +209,10 @@ export const useChatStore = defineStore('chat', () => {
     send,
     confirm,
     cancel,
+    setFeedback,
   }
 })
+
+if (import.meta.hot) {
+  import.meta.hot.accept(acceptHMRUpdate(useChatStore, import.meta.hot))
+}

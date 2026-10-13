@@ -166,6 +166,43 @@ async def delete_session(session_id: uuid.UUID, db: DbSession, request: Request)
         shutil.rmtree(Path(root) / str(session_id), ignore_errors=True)
 
 
+class MessageFeedbackBody(BaseModel):
+    rating: Literal["like", "dislike"] | None
+    reasons: list[Literal[
+        "misunderstood_question", "context_error", "vague_answer", "code_error",
+        "unprofessional_answer", "code_format", "other",
+    ]] = Field(default_factory=list, max_length=7)
+    comment: str = Field("", max_length=200)
+
+    @model_validator(mode="after")
+    def validate_feedback(self) -> "MessageFeedbackBody":
+        self.comment = self.comment.strip()
+        if len(self.reasons) != len(set(self.reasons)):
+            raise ValueError("反馈原因不能重复")
+        if self.rating == "dislike":
+            if not self.reasons:
+                raise ValueError("请至少选择一个不满意的原因")
+            if self.comment and "other" not in self.reasons:
+                raise ValueError("补充说明需要选择其他原因")
+        elif self.reasons or self.comment:
+            raise ValueError("只有点踩反馈可以包含原因和补充说明")
+        return self
+
+
+@router.put("/messages/{message_id}/feedback")
+async def update_message_feedback(
+    message_id: uuid.UUID, body: MessageFeedbackBody, db: DbSession
+) -> dict[str, Any]:
+    message = await db.get(Message, message_id)
+    if message is None:
+        raise HTTPException(404, "消息不存在")
+    if message.role != "assistant" or not message.content.strip():
+        raise HTTPException(422, "仅支持对有正文的 AI 回复提交反馈")
+    message.feedback = body.model_dump() if body.rating is not None else None
+    await db.commit()
+    return {"message_id": str(message.id), "feedback": message.feedback}
+
+
 class IncomingAttachment(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
     media_type: str = Field("application/octet-stream", max_length=200)

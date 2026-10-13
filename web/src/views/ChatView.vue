@@ -14,6 +14,7 @@ import AgentOrb from '@/components/AgentOrb.vue'
 import Composer from '@/components/Composer.vue'
 import ConfirmationCard from '@/components/ConfirmationCard.vue'
 import MarkdownText from '@/components/MarkdownText.vue'
+import MessageActions from '@/components/MessageActions.vue'
 import ModelSetupNotice from '@/components/ModelSetupNotice.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import RunActivity from '@/components/RunActivity.vue'
@@ -361,7 +362,7 @@ watch(
         <p v-if="chat.loading" class="text-center text-sm text-muted-foreground">加载中…</p>
 
         <section v-for="g in groups" :key="g.key" class="space-y-4">
-          <div class="flex justify-end">
+          <div class="flex flex-col items-end gap-1">
             <div class="max-w-[80%] rounded-2xl bg-muted px-4 py-2.5 text-[14px] leading-6">
               <div v-if="g.user.attachments?.length" class="mb-2 flex flex-wrap gap-2">
                 <template v-for="file in g.user.attachments" :key="file.path">
@@ -388,6 +389,7 @@ watch(
               </div>
               <p v-if="g.user.content" class="whitespace-pre-wrap">{{ g.user.content }}</p>
             </div>
+            <MessageActions v-if="g.user.content" :message="g.user" />
           </div>
 
           <div class="space-y-4">
@@ -433,12 +435,14 @@ watch(
                 </div>
               </RunActivity>
 
-              <MarkdownText
+              <div
                 v-for="m in g.assistant.filter((item) => item.content)"
                 :key="m.id"
-                :source="m.content"
-                class="text-[14px] leading-7"
-              />
+                class="space-y-1"
+              >
+                <MarkdownText :source="m.content" class="text-[14px] leading-7" />
+                <MessageActions :message="m" />
+              </div>
 
               <MarkdownText
                 v-if="chat.draft && chat.draft.runId === g.run?.id"

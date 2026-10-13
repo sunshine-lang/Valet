@@ -2,6 +2,7 @@ import type {
   AgentConfig,
   ChatSession,
   ModelInfo,
+  MessageFeedback,
   ProviderInfo,
   Run,
   SessionDetail,
@@ -100,6 +101,11 @@ export const api = {
   createSession: () => request<ChatSession>('/api/sessions', { method: 'POST' }),
   getSession: (id: string) => request<SessionDetail>(`/api/sessions/${id}`),
   deleteSession: (id: string) => request<void>(`/api/sessions/${id}`, { method: 'DELETE' }),
+  updateMessageFeedback: (messageId: string, feedback: MessageFeedback | null) =>
+    request<{ message_id: string; feedback: MessageFeedback | null }>(
+      `/api/messages/${messageId}/feedback`,
+      { method: 'PUT', body: JSON.stringify(feedback ?? { rating: null }) },
+    ),
 
   sendMessage: (
     sessionId: string,

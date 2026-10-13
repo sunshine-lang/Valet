@@ -37,6 +37,21 @@ export interface WorkspaceFile {
   zone: 'uploads' | 'workspace' | 'outputs'
 }
 
+export type FeedbackReason =
+  | 'misunderstood_question'
+  | 'context_error'
+  | 'vague_answer'
+  | 'code_error'
+  | 'unprofessional_answer'
+  | 'code_format'
+  | 'other'
+
+export interface MessageFeedback {
+  rating: 'like' | 'dislike'
+  reasons: FeedbackReason[]
+  comment: string
+}
+
 export interface Message {
   id: string
   session_id: string
@@ -50,6 +65,7 @@ export interface Message {
   tool_name: string | null
   attachments: Attachment[] | null
   skill_names: string[] | null
+  feedback: MessageFeedback | null
   created_at: string
 }
 

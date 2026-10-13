@@ -25,6 +25,8 @@ def _add_missing_columns(connection) -> None:
         connection.execute(text("ALTER TABLE messages ADD COLUMN attachments JSON"))
     if "skill_names" not in columns:
         connection.execute(text("ALTER TABLE messages ADD COLUMN skill_names JSON"))
+    if "feedback" not in columns:
+        connection.execute(text("ALTER TABLE messages ADD COLUMN feedback JSON"))
     tables = set(inspect(connection).get_table_names())
     if "chat_sessions" in tables:
         session_columns = {

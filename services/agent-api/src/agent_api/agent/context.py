@@ -37,6 +37,7 @@ def serialize_message(m: Message) -> dict[str, Any]:
             else None
         ),
         "skill_names": m.skill_names,
+        "feedback": m.feedback,
         "created_at": iso_utc(m.created_at),
     }
 

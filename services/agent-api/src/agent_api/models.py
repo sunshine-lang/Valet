@@ -63,6 +63,7 @@ class Message(Base):
     attachments: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     # 用户在这一轮点名使用的技能。正文在运行时再读，不写进消息文本。
     skill_names: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    feedback: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
